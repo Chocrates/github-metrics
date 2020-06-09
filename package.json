@@ -1,0 +1,18 @@
+{
+  "name": "github-metrics",
+  "version": "1.0.0",
+  "description": "Tools to grab metrics for a GitHub organization",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "GitHub Services DevOps",
+  "license": "ISC",
+  "dependencies": {
+    "@octokit/plugin-throttling": "^3.2.1",
+    "@octokit/rest": "^17.11.0",
+    "commander": "^5.1.0",
+    "https": "^1.0.0",
+    "yargs": "^15.3.1"
+  }
+}
