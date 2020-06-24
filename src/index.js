@@ -48,7 +48,7 @@ function getGitHubClient({ token, baseUrl }) {
     baseUrl,
     throttle: {
       onRateLimit: (retryAfter, options) => {
-        octokit.log.warn(`Request quota exhausted for request ${options.method} ${options.url}`);
+        console.warn(`Request quota exhausted for request ${options.method} ${options.url}`);
 
         if (options.request.retryCount === 0) {
           console.log(`Retrying after ${retryAfter} seconds!`);
@@ -56,7 +56,7 @@ function getGitHubClient({ token, baseUrl }) {
         }
       },
       onAbuseLimit: (retryAfter, options) => {
-        octokit.log.warn(`Abuse detected for request ${options.method} ${options.url}`);
+        console.warn(`Abuse detected for request ${options.method} ${options.url}`);
       },
     },
   });
