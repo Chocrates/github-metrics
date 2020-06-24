@@ -50,7 +50,7 @@ function getGitHubClient({ token, baseUrl }) {
       onRateLimit: (retryAfter, options) => {
         console.warn(`Request quota exhausted for request ${options.method} ${options.url}`);
 
-        if (options.request.retryCount === 0) {
+        if (options.request.retryCount <= 10) {
           console.log(`Retrying after ${retryAfter} seconds!`);
           return true;
         }
