@@ -39,6 +39,11 @@ async function main() {
 
 }
 
+// ugly but doesn't need async
+const sleep = (duration) => {
+  var now = new Date().getTime();
+  while(new Date().getTime() < now + duration) {  }
+}
 
 function getGitHubClient({ token, baseUrl }) {
   const MyOctokit = Octokit.plugin(throttling);
@@ -51,11 +56,10 @@ function getGitHubClient({ token, baseUrl }) {
         console.warn(`Request quota exhausted for request ${options.method} ${options.url}`);
 
         if (options.request.retryCount <= 100) {
-
           // Still having trouble when we hit our api limit
           // Arbitrarily waiting for a minute if we hit a retry
           if(options.request.retryCount > 0){
-            await new Promise(r => setTimeout(r, 60000));
+            sleep(60000)
           }
           console.log(`Retrying after ${retryAfter} seconds!`);
           return true;
