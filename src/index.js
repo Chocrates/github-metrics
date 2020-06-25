@@ -61,7 +61,7 @@ function getGitHubClient({ token, baseUrl }) {
           if(options.request.retryCount > 0){
             sleep(60000)
           }
-          console.log(`Retrying after ${retryAfter} seconds!`);
+          console.log(`Retrying after ${retryAfter} seconds! Retry Count: ${options.request.retryCount}`);
           return true;
         }
       },
