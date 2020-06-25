@@ -25,6 +25,7 @@ exports.builder = (yargs) => {
 }
 
 exports.run = async ({ client, argv}) => {
+    try {
     const owner = argv.owner;
     const gatherEmails = argv.gatherEmails;
     const date = new Date(Date.parse(argv.date));
@@ -79,7 +80,10 @@ exports.run = async ({ client, argv}) => {
     }
 
     await write_result_files({members, unrecognized_users});
-
+}catch(error){
+    console.error(error);
+    console.error(error.stack);
+}
 
 
 
