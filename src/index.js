@@ -54,20 +54,16 @@ function getGitHubClient({ token, baseUrl }) {
     throttle: {
       onRateLimit: (retryAfter, options) => {
         console.warn(`Request quota exhausted for request ${options.method} ${options.url}`);
-
-        if (options.request.retryCount <= 100) {
-          // Still having trouble when we hit our api limit
-          // Arbitrarily waiting for a minute if we hit a retry
-          if(options.request.retryCount > 0){
-            sleep(60000)
-          }
-          console.log(`Retrying after ${retryAfter} seconds! Retry Count: ${options.request.retryCount}`);
-          return true;
-        }
+        console.log(`Retrying after ${retryAfter} seconds! Retry Count: ${options.request.retryCount}`);
+        return true;
       },
       onAbuseLimit: (retryAfter, options) => {
         console.warn(`Abuse detected for request ${options.method} ${options.url}`);
       },
+	onTimeout: (retryAfter, options) => {
+		console.log(`Timeout, retrying after ${retryAfter} seconds`);
+		return true;
+	}
     },
   });
 }
