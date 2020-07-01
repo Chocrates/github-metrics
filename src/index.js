@@ -1,6 +1,10 @@
-const { Octokit } = require("@octokit/rest")
-const { program } = require("commander");
 const { throttling } = require("@octokit/plugin-throttling");
+const { retry } = require("@octokit/plugin-retry")
+const { Octokit } = require('@octokit/rest')
+const MyOctokit = Octokit
+  .plugin(throttling)
+  .plugin(retry)
+const { program } = require("commander");
 const Agent = require("https").Agent;
 const issueCmd = require("./issues");
 const userCmd = require("./users");
@@ -46,7 +50,6 @@ const sleep = (duration) => {
 }
 
 function getGitHubClient({ token, baseUrl }) {
-  const MyOctokit = Octokit.plugin(throttling);
   return new MyOctokit({
     auth: "token " + token,
     agent: new Agent({ rejectUnauthorized: true }),
@@ -59,12 +62,9 @@ function getGitHubClient({ token, baseUrl }) {
       },
       onAbuseLimit: (retryAfter, options) => {
         console.warn(`Abuse detected for request ${options.method} ${options.url}`);
-      },
-	onTimeout: (retryAfter, options) => {
-		console.log(`Timeout, retrying after ${retryAfter} seconds`);
-		return true;
-	}
+      }
     },
+    request: { retries: 100 }
   });
 }
 
