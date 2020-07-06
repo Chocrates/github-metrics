@@ -38,15 +38,21 @@ exports.run = async ({ client, argv}) => {
     const members = await getMembers({client, cacheDir, owner, gatherEmails}) 
     const unrecognized_users = {};
 
+    const errors = { repo:[],
+        branch: []
+    }
+
     // Get all repos from this org
     const repos = await getRepos({client,cacheDir,owner});
 
     // For each Repo
     let index = 0;
     for(let repo of repos) {
+       try{
         console.log(`Logging Repo ${repo.name} ${index++}/${repos.length-1}`)
-       const branches = await getBranches({client,cacheDir, owner, repo: repo.name});
+        const branches = await getBranches({client,cacheDir, owner, repo: repo.name});
         for(let branch of branches) {
+            try { 
             const commits = await getCommits({client,cacheDir,owner, repo: repo.name,branch: branch.name, since:date.toISOString()});
             for(let commit of commits){
                 if(commit.author && commit.author.login in members){
@@ -55,6 +61,9 @@ exports.run = async ({ client, argv}) => {
                     unrecognized_users[commit.commit.author.name] = { email: commit.commit.author.email }
                 }
             }
+        }catch(error){
+            handleError('branch', errors, error)
+        }
         }
 
         // Get Issue Activity
@@ -77,9 +86,12 @@ exports.run = async ({ client, argv}) => {
                 unrecognized_users[comment.user.login] = { email: "" }
             }
         }
+    }catch(error){ 
+        handleError('repo', errors,  error)
+    }
     }
 
-    await write_result_files({members, unrecognized_users});
+    await write_result_files({members, unrecognized_users, errors});
 }catch(error){
     console.error(error);
     console.error(error.stack);
@@ -89,7 +101,13 @@ exports.run = async ({ client, argv}) => {
 
 }
 
-const write_result_files = async ({members, unrecognized_users}) => {
+const handleError = ({type, errors, error}) => {
+    console.log(`${type}: ${branch} has been deleted`)
+    if(error.code !== 404){
+        errors[type].push(error)
+    }
+}
+const write_result_files = async ({members, unrecognized_users, errors}) => {
     // active users
     const active = Object.entries(members).filter(([key,value]) => {
         return value.active
@@ -111,6 +129,12 @@ const write_result_files = async ({members, unrecognized_users}) => {
     // unrecognized users
     const unrecognized = Object.keys(unrecognized_users)
     fs.writeFile("unrecognized_users.json", JSON.stringify(unrecognized), (err) => {
+        if(err){
+            console.error(err);
+        }
+    })
+
+    fs.writeFile("errors.log", JSON.stringify(errors), (err) => {
         if(err){
             console.error(err);
         }

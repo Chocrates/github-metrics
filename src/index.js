@@ -64,10 +64,9 @@ function getGitHubClient({ token, baseUrl }) {
         console.warn(`Abuse detected for request ${options.method} ${options.url}`);
       }
     },
-    request: { retries: 100,
-    doNotRetry: [
-      403
-    ]
+    request: { 
+      retries: 3,
+      doNotRetry: [ 403 ]
      }
   });
 }
