@@ -102,7 +102,7 @@ exports.run = async ({ client, argv}) => {
 }
 
 const handleError = ({type, errors, error}) => {
-    console.log(`${type}: ${branch} has been deleted`)
+    console.log(`Error: ${type} has been deleted. ${error}`)
     if(error.code !== 404){
         errors[type].push(error)
     }
