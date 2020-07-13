@@ -111,7 +111,7 @@ const write_result_files = async ({members, unrecognized_users, errors}) => {
     // active users
     const active = Object.entries(members).filter(([key,value]) => {
         return value.active
-    }).map((entry) => { return entry[0]})
+    })//.map((entry) => { return entry[0]})
     fs.writeFile("active_members.json", JSON.stringify(active), (err) => {
         if(err){
             console.error(err);
@@ -120,7 +120,7 @@ const write_result_files = async ({members, unrecognized_users, errors}) => {
     // inactive users
     const inactive = Object.entries(members).filter(([key,value]) => {
         return !value.active
-    }).map((entry) => { return entry[0]})
+    })//.map((entry) => { return entry[0]})
     fs.writeFile("inactive_members.json", JSON.stringify(inactive), (err) => {
         if(err){
             console.error(err);
@@ -128,7 +128,7 @@ const write_result_files = async ({members, unrecognized_users, errors}) => {
     })
     // unrecognized users
     const unrecognized = Object.keys(unrecognized_users)
-    fs.writeFile("unrecognized_users.json", JSON.stringify(unrecognized), (err) => {
+    fs.writeFile("unrecognized_users.json", JSON.stringify(unrecognized_users), (err) => {
         if(err){
             console.error(err);
         }
@@ -160,6 +160,7 @@ const getBranches = async ({client,cacheDir,owner,repo}) => {
     const options = client.repos.listBranches.endpoint.merge({owner: owner, repo: repo})
     return await client.paginate(options);
 }
+
 const getRepos = async ({client, cacheDir, owner}) => {
     const options = client.repos.listForOrg.endpoint.merge({org: owner});
     return await client.paginate(options);
@@ -173,13 +174,17 @@ const getMembers = async({client,cacheDir, owner, gatherEmails}) => {
     // Save option flags so we can determine if we need to update the cache (IE was the cache saved without gather emails)
     if(!fs.existsSync(cacheMembers)){
     const options = client.orgs.listMembers.endpoint.merge({org: owner});
-    members = Object.assign({}, ...(await client.paginate(options)).map((user) => ({[user.login]: {
+    const results = await client.paginate(options);
+    members = Object.assign({}, ...results.map((user) => ({[user.login]: {
     'email': '',
+    'name': '',
     'active': false
     }})));
     if(gatherEmails) {
        for(let key in members){
-           members[key].email = (await client.users.getByUsername({username: key})).email
+           const user = await client.users.getByUsername({username: key})
+           members[key].email = user.data.email
+           members[key].name = user.data.name
        } 
     }
     fs.writeFile(cacheMembers, JSON.stringify(members), (err) => {
