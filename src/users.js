@@ -26,87 +26,88 @@ exports.builder = (yargs) => {
 
 exports.run = async ({ client, argv}) => {
     try {
-    const owner = argv.owner;
-    const gatherEmails = argv.gatherEmails;
-    const date = new Date(Date.parse(argv.date));
-    
-    // Get all org members into a hash with login, email, active bool set to alse    
-    const cacheDir = '.cache'
-    if (!fs.existsSync(cacheDir)){
-        fs.mkdirSync(cacheDir);
-    }
-    const members = await getMembers({client, cacheDir, owner, gatherEmails}) 
-    const unrecognized_users = {};
+        const owner = argv.owner;
+        const gatherEmails = argv.gatherEmails;
+        const date = new Date(Date.parse(argv.date));
+        
+        // Get all org members into a hash with login, email, active bool set to alse    
+        const cacheDir = '.cache'
+        if (!fs.existsSync(cacheDir)){
+            fs.mkdirSync(cacheDir);
+        }
+        const members = await getMembers({client, cacheDir, owner, gatherEmails}) 
+        const unrecognized_users = {};
 
-    const errors = { repo:[],
-        branch: []
-    }
+        const errors = { 
+            repo:[],
+            branch: []
+        }
 
-    // Get all repos from this org
-    const repos = await getRepos({client,cacheDir,owner});
+        // Get all repos from this org
+        const repos = await getRepos({client,cacheDir,owner});
 
-    // For each Repo
-    let index = 0;
-    for(let repo of repos) {
-       try{
-        console.log(`Logging Repo ${repo.name} ${index++}/${repos.length-1}`)
-        const branches = await getBranches({client,cacheDir, owner, repo: repo.name});
-        for(let branch of branches) {
-            try { 
-            const commits = await getCommits({client,cacheDir,owner, repo: repo.name,branch: branch.name, since:date.toISOString()});
-            for(let commit of commits){
-                if(commit.author && commit.author.login in members){
-                    members[commit.author.login].active = true;
-                }else{
-                    unrecognized_users[commit.commit.author.name] = { email: commit.commit.author.email }
+        // For each Repo
+        let index = 0;
+        for(let repo of repos) {
+            try{
+                console.log(`Logging Repo ${repo.name} ${index++}/${repos.length-1}`)
+                const branches = await getBranches({client,cacheDir, owner, repo: repo.name});
+                for(let branch of branches) {
+                    try { 
+                        const commits = await getCommits({client,cacheDir,owner, repo: repo.name,branch: branch.name, since:date.toISOString()});
+                        for(let commit of commits){
+                            if(commit.author && commit.author.login in members){
+                                members[commit.author.login].active = true;
+                            }else{
+                                unrecognized_users[commit.commit.author.name] = { email: commit.commit.author.email }
+                            }
+                        }
+                    }catch(error){
+                        console.log('Error while reading branches')
+                        console.log(error)
+                        handleError({type: 'branch', errors, error})
+                    }
                 }
+
+                // Get Issue Activity
+                const issues = await getIssues({client,cacheDir,owner,repo: repo.name,since: date.toISOString()})
+                for(let issue of issues){
+                    if(issue.user && issue.user.login in members){
+                        members[issue.user.login].active = true;
+                    }else{
+                        console.error(`User not found in members dict: ${issue.user.login}`)
+                        unrecognized_users[issue.user.login] = { email: "" }
+                    }
+                }
+
+                const issueComments = await getIssueComments({client,cacheDir,owner,repo: repo.name, since: date.toISOString()})
+                for(let comment of issueComments){
+                    if(comment.user && comment.user.login in members){
+                        members[comment.user.login].active = true
+                    }else {
+                        console.error(`User not found in members dict: ${comment.user.login}`)
+                        unrecognized_users[comment.user.login] = { email: "" }
+                    }
+                }
+            }catch(error){ 
+                handleError({type:'repo', errors,  error})
             }
-        }catch(error){
-            handleError('branch', errors, error)
-        }
         }
 
-        // Get Issue Activity
-        const issues = await getIssues({client,cacheDir,owner,repo: repo.name,since: date.toISOString()})
-        for(let issue of issues){
-            if(issue.user && issue.user.login in members){
-                members[issue.user.login].active = true;
-            }else{
-                console.error(`User not found in members dict: ${issue.user.login}`)
-                unrecognized_users[issue.user.login] = { email: "" }
-            }
-        }
-
-        const issueComments = await getIssueComments({client,cacheDir,owner,repo: repo.name, since: date.toISOString()})
-        for(let comment of issueComments){
-            if(comment.user && comment.user.login in members){
-                members[comment.user.login].active = true
-            }else {
-                console.error(`User not found in members dict: ${comment.user.login}`)
-                unrecognized_users[comment.user.login] = { email: "" }
-            }
-        }
-    }catch(error){ 
-        handleError('repo', errors,  error)
+        await write_result_files({members, unrecognized_users, errors});
+    }catch(error){
+        console.error(error);
+        console.error(error.stack);
     }
-    }
-
-    await write_result_files({members, unrecognized_users, errors});
-}catch(error){
-    console.error(error);
-    console.error(error.stack);
-}
-
-
-
 }
 
 const handleError = ({type, errors, error}) => {
     console.log(`Error: ${type} has been deleted. ${error}`)
-    if(error.code !== 404){
+    if(error && 'code' in error && error.code !== 404){
         errors[type].push(error)
     }
 }
+
 const write_result_files = async ({members, unrecognized_users, errors}) => {
     // active users
     const active = Object.entries(members).filter(([key,value]) => {
@@ -173,27 +174,27 @@ const getMembers = async({client,cacheDir, owner, gatherEmails}) => {
     // Give option to ignore/reset cache
     // Save option flags so we can determine if we need to update the cache (IE was the cache saved without gather emails)
     if(!fs.existsSync(cacheMembers)){
-    const options = client.orgs.listMembers.endpoint.merge({org: owner});
-    const results = await client.paginate(options);
-    members = Object.assign({}, ...results.map((user) => ({[user.login]: {
-    'email': '',
-    'name': '',
-    'active': false
-    }})));
-    if(gatherEmails) {
-       for(let key in members){
-           const user = await client.users.getByUsername({username: key})
-           members[key].email = user.data.email
-           members[key].name = user.data.name
-       } 
-    }
-    fs.writeFile(cacheMembers, JSON.stringify(members), (err) => {
-        if(err){
-            console.error(err);
+        const options = client.orgs.listMembers.endpoint.merge({org: owner});
+        const results = await client.paginate(options);
+        members = Object.assign({}, ...results.map((user) => ({[user.login]: {
+        'email': '',
+        'name': '',
+        'active': false
+        }})));
+        if(gatherEmails) {
+        for(let key in members){
+            const user = await client.users.getByUsername({username: key})
+            members[key].email = user.data.email
+            members[key].name = user.data.name
+        } 
         }
-    })
-} else {
-    members = JSON.parse(fs.readFileSync(cacheMembers));
-}
+        fs.writeFile(cacheMembers, JSON.stringify(members), (err) => {
+            if(err){
+                console.error(err);
+            }
+        })
+    } else {
+        members = JSON.parse(fs.readFileSync(cacheMembers));
+    }
     return members;
 }
