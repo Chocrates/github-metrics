@@ -182,11 +182,11 @@ const getMembers = async({client,cacheDir, owner, gatherEmails}) => {
         'active': false
         }})));
         if(gatherEmails) {
-        for(let key in members){
-            const user = await client.users.getByUsername({username: key})
-            members[key].email = user.data.email
-            members[key].name = user.data.name
-        } 
+            const membersWithRole = await fetchMembersWithRole(client, owner);
+            for(let user of membersWithRole){
+                members[user.login].email = user.organizationVerifiedDomainEmails.length > 0 ? user.organizationVerifiedDomainEmails[0] : user.email;
+                members[user.login].name = user.name;
+            }
         }
         fs.writeFile(cacheMembers, JSON.stringify(members), (err) => {
             if(err){
@@ -198,3 +198,34 @@ const getMembers = async({client,cacheDir, owner, gatherEmails}) => {
     }
     return members;
 }
+
+
+
+async function fetchMembersWithRole(octokit, owner, { results, cursor } = { results: [] }) {
+    const USER_QUERY = `query($cursor:String) {
+        organization(login: "${owner}") {
+           membersWithRole(first: 100, after:$cursor) {
+            pageInfo {
+                endCursor
+                hasNextPage
+            }
+    
+            nodes {
+              login
+              name
+              email
+              organizationVerifiedDomainEmails(login:  "${owner}")
+            }
+          }
+        }
+      }`;
+
+    const { organization: { membersWithRole } } = await octokit.graphql(USER_QUERY, { cursor });
+    results.push(...membersWithRole.nodes);
+  
+    if (membersWithRole.pageInfo.hasNextPage) {
+      await fetchMembersWithRole(octokit, owner, { results, cursor: membersWithRole.pageInfo.endCursor });
+    }
+  
+    return results;
+  }
