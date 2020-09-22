@@ -54,7 +54,7 @@ eval node src/index.js --token $TOKEN $POSITIONAL --owner $OWNER --date $DATE ${
 
 # zip reports
 ZIP_NAME=user_reports.$(date +%Y%m%d).zip
-zip $ZIP_NAME unrecognized_users.json inactive_members.json errors.log active_members.json
+zip $ZIP_NAME unrecognized_users.json inactive_members.json errors.log active_members.json unrecognized_users.json
 
 git clone "https://${TOKEN}@github.com/${OWNER}/${REPO}.git"
 
