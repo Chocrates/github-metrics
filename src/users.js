@@ -49,10 +49,6 @@ exports.run = async ({ client, argv}) => {
         // For each Repo
         let index = 0;
         for(let repo of repos) {
-            if(index >= 10){
-                console.log("Breaking");
-                break;
-            }
             try{
                 console.log(`Logging Repo ${repo.name} ${index++}/${repos.length-1}`)
                 const branches = await getBranches({client,cacheDir, owner, repo: repo.name});
