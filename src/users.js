@@ -49,6 +49,10 @@ exports.run = async ({ client, argv}) => {
         // For each Repo
         let index = 0;
         for(let repo of repos) {
+            if(index >= 10){
+                console.log("Breaking");
+                break;
+            }
             try{
                 console.log(`Logging Repo ${repo.name} ${index++}/${repos.length-1}`)
                 const branches = await getBranches({client,cacheDir, owner, repo: repo.name});
@@ -94,6 +98,9 @@ exports.run = async ({ client, argv}) => {
             }
         }
 
+        // Moving users less than 90 days old to the active list
+        const audit_log = await get_audit_entries({client, owner, since: date.toISOString()})
+        await remove_new_users({audit_log, members})
         await write_result_files({members, unrecognized_users, errors});
     }catch(error){
         console.error(error);
@@ -168,37 +175,25 @@ const getRepos = async ({client, cacheDir, owner}) => {
 }
 
 const getMembers = async({client,cacheDir, owner, gatherEmails}) => {
-    const cacheMembers = cacheDir + '/members.json';
     let members;
-    // TODO: Determine if the cache is stale
-    // Give option to ignore/reset cache
-    // Save option flags so we can determine if we need to update the cache (IE was the cache saved without gather emails)
-    if(!fs.existsSync(cacheMembers)){
-        const options = client.orgs.listMembers.endpoint.merge({org: owner});
-        const results = await client.paginate(options);
-        members = Object.assign({}, ...results.map((user) => ({[user.login]: {
-        'email': '',
-        'name': '',
-        'active': false
-        }})));
-        if(gatherEmails) {
-            const membersWithRole = await fetchMembersWithRole(client, owner);
-            for(let user of membersWithRole){
-                members[user.login].email = user.organizationVerifiedDomainEmails.length > 0 ? user.organizationVerifiedDomainEmails[0] : user.email;
-                members[user.login].name = user.name;
-            }
+
+    const options = client.orgs.listMembers.endpoint.merge({org: owner});
+    const results = await client.paginate(options);
+    members = Object.assign({}, ...results.map((user) => ({[user.login]: {
+    'email': '',
+    'name': '',
+    'active': false
+    }})));
+    if(gatherEmails) {
+        const membersWithRole = await fetchMembersWithRole(client, owner);
+        for(let user of membersWithRole){
+            members[user.login].email = user.organizationVerifiedDomainEmails.length > 0 ? user.organizationVerifiedDomainEmails[0] : user.email;
+            members[user.login].name = user.name;
         }
-        fs.writeFile(cacheMembers, JSON.stringify(members), (err) => {
-            if(err){
-                console.error(err);
-            }
-        })
-    } else {
-        members = JSON.parse(fs.readFileSync(cacheMembers));
     }
+
     return members;
 }
-
 
 
 async function fetchMembersWithRole(octokit, owner, { results, cursor } = { results: [] }) {
@@ -229,3 +224,69 @@ async function fetchMembersWithRole(octokit, owner, { results, cursor } = { resu
   
     return results;
   }
+
+const get_audit_entries = async({client, owner, since}) => {
+    const AUDIT_QUERY = `
+    query($owner: String!, $per_page: Int = 100, $after: String) {
+      organization(login: $owner) {
+        auditLog(first: $per_page, after: $after, query: "created:>=${since} action:org.add_member") {
+          nodes {
+            ... on OrgAddMemberAuditEntry {
+              action
+              actor {
+                ... on User {
+                  login
+                  email
+                }
+                ... on Bot {
+                  login
+                  login
+                }
+                ... on Organization {
+                  login
+                  orgEmail: email
+                }
+              }
+              createdAt
+              userLogin
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          totalCount
+        }
+      }
+    }`
+    let cursor
+    const auditLog = []
+
+    try{
+        do {
+            results = await client.graphql(AUDIT_QUERY, {
+            owner,
+            after: cursor,
+            });
+            cursor = results.organization.auditLog.pageInfo.endCursor;
+
+
+            auditLog.push(...results.organization.auditLog.nodes);
+        } while (results.organization.auditLog.pageInfo.hasNextPage);
+    }catch(error){
+        console.error(error)
+        throw error;
+    }
+    return auditLog;
+}
+
+const remove_new_users = async({audit_log, members}) => {
+    for(let audit of audit_log){
+        if(members[audit.userLogin]){
+            members[audit.userLogin].active = true;
+        }
+    }
+}
+
+
+  
