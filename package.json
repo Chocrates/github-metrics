@@ -13,7 +13,7 @@
     "@octokit/plugin-retry": "^3.0.3",
     "@octokit/plugin-throttling": "^3.3.0",
     "@octokit/rest": "^17.11.0",
-    "axios": "^0.20.0",
+    "axios": "^0.21.1",
     "commander": "^5.1.0",
     "https": "^1.0.0",
     "yargs": "^15.3.1"
